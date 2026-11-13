@@ -8,46 +8,9 @@ Pipeline de focos de calor com produtor na sua máquina, dados brutos do INPE, c
 
 A arquitetura separa a **ingestão**, que começa na sua máquina e grava na AWS, da **visualização**, em que o navegador consulta uma Lambda pública. O mapa pode ser hospedado na Vercel ou em qualquer serviço de arquivos estáticos; ele não depende de um servidor local nem recebe credenciais AWS.
 
-```mermaid
-flowchart LR
-    INPE["INPE · arquivos CSV de 10 minutos"]
+[![Diagrama da arquitetura: produtor local, serviços AWS e mapa D3](docs/architecture.svg)](docs/architecture.svg)
 
-    subgraph LOCAL["Sua máquina · produtor Python"]
-        SCRAPE["Download e normalização"]
-        SQL["SQLite · registros, deduplicação e checkpoints"]
-        CSV["CSV consolidado · ordenado por data UTC"]
-        STREAM["Leitura do S3 em streaming"]
-        SCRAPE --> SQL --> CSV
-        SQL -. "ignora IDs já enviados" .-> STREAM
-    end
-
-    subgraph AWS["AWS · região sa-east-1"]
-        S3["S3 privado · snapshots do dataset"]
-        Q["SQS FIFO · 1 a 10 registros por mensagem"]
-        CONSUMER["Lambda consumidora · H3"]
-        DLQ["SQS DLQ · mensagens com falha"]
-        DB["DynamoDB · observações e grupos de 10 min"]
-        INDEX["GSI ObservationsByTime · consulta por horário"]
-        API["Lambda de consulta · Function URL pública"]
-        Q -->|"1 mensagem por invocação"| CONSUMER
-        Q -->|"após 5 recebimentos sem sucesso"| DLQ
-        CONSUMER -->|"transação: observação + contador"| DB
-        DB -->|"indexação automática"| INDEX
-        API -->|"Query · leitura apenas"| INDEX
-        INDEX -->|"observações do período"| API
-    end
-
-    HOST["Vercel ou outra hospedagem estática"]
-    MAP["Navegador · mapa D3"]
-
-    INPE --> SCRAPE
-    CSV -->|"upload · --scrape"| S3
-    S3 -->|"download em stream · --start"| STREAM
-    STREAM -->|"envio com pausa configurável"| Q
-    HOST -->|"HTML, CSS e JavaScript"| MAP
-    MAP -->|"GET HTTPS · polling a cada 5 s"| API
-    API -->|"GeoJSON paginado"| MAP
-```
+O diagrama separa o produtor local (verde), os serviços AWS (roxo) e a hospedagem/navegador (cinza). Clique na imagem para abrir em tamanho completo.
 
 ### 1. Fonte de dados: INPE
 
