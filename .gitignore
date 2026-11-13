@@ -1,0 +1,21 @@
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
+Failed to create stream fd: Operation not permitted
+.venv/
+__pycache__/
+*.pyc
+.env
+.aws-sam/
+data/
+.pytest_cache/
+dist/
+
+# Local credentials and agent configuration
+.aws/
+.codex/
+.agents/
+.env.*
+!.env.example
+
+# Generated deployment archives
+artifacts/*.zip
