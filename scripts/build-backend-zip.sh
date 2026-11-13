@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# AWS CloudShell ou Linux: pacote para Lambda Python 3.12 / x86_64.
+set -euo pipefail
+project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+build_dir="$(mktemp -d)"
+trap 'rm -rf -- "$build_dir"' EXIT
+python3 -m pip install \
+  --platform manylinux_2_28_x86_64 --platform manylinux2014_x86_64 \
+  --implementation cp --python-version 3.12 --abi cp312 \
+  --only-binary=:all: --no-compile \
+  --target "$build_dir" -r "$project_dir/backend/requirements-lambda.txt"
+mkdir -p "$build_dir/backend" "$build_dir/common" "$project_dir/dist"
+cp "$project_dir/backend/__init__.py" "$project_dir/backend/handler.py" "$project_dir/backend/query.py" "$build_dir/backend/"
+cp "$project_dir/common/__init__.py" "$project_dir/common/records.py" "$build_dir/common/"
+python3 - "$build_dir" "$project_dir/dist/inpe-api.zip" <<'PY'
+from pathlib import Path
+import sys
+from zipfile import ZipFile, ZIP_DEFLATED
+source, output = map(Path, sys.argv[1:])
+with ZipFile(output, 'w', ZIP_DEFLATED) as archive:
+    for path in sorted(source.rglob('*')):
+        if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc':
+            archive.write(path, path.relative_to(source))
+with ZipFile(output) as archive:
+    names = archive.namelist()
+    assert all(n in names for n in ('backend/handler.py', 'backend/query.py', 'common/records.py', 'boto3/__init__.py'))
+    assert any(n.startswith('h3/') and n.endswith('.so') and 'cpython-312' in n for n in names)
+    assert archive.testzip() is None
+print(f'Pacote gerado: {output}')
+print('Runtime: Python 3.12 | Arquitetura: x86_64 | Handler: backend.handler.handler')
+PY

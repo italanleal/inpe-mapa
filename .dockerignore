@@ -1,0 +1,9 @@
+.git
+.aws
+.codex
+.agents
+.venv
+.aws-sam
+data
+**/__pycache__
+.env
