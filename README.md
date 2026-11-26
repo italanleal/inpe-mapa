@@ -8,38 +8,7 @@ Pipeline de processamento geoespacial e visualização de focos de calor do INPE
 
 A arquitetura começa a partir do CSV consolidado e ordenado cronologicamente no **S3** (`consolidated/dataset.csv`). A preparação prévia desse dataset a partir dos CSVs públicos do INPE é executada de forma independente pelo script utilitário [`scripts/scrape_inpe.py`](scripts/scrape_inpe.py).
 
-```mermaid
-flowchart LR
-    subgraph AWS_INGEST["AWS · Ingestão e Processamento (sa-east-1)"]
-        S3["S3 privado<br/>consolidated/dataset.csv"]
-        Q["SQS FIFO<br/>1 registro por mensagem"]
-        CONSUMER["Lambda consumidora<br/>conversão lat/lon → H3"]
-        DLQ["SQS DLQ<br/>mensagens com falha"]
-        DB["DynamoDB<br/>pk=CLUSTER · {h3, satellite, count}"]
-    end
-
-    subgraph LOCAL["Produtor Python (streaming)"]
-        STREAM["Leitura em stream linha a linha<br/>sem estado/deduplicação local"]
-    end
-
-    subgraph AWS_SERVE["AWS · API e Hospedagem (sa-east-1)"]
-        API["Lambda de consulta<br/>Function URL pública (GET / DELETE)"]
-        EB["AWS Elastic Beanstalk<br/>aplicação WSGI + arquivos estáticos"]
-    end
-
-    MAP["Navegador<br/>mapa interativo Plotly.js (choroplethmap)"]
-
-    S3 -->|"download em stream · --start"| STREAM
-    STREAM -->|"envio linha a linha com pausa configurável"| Q
-    Q -->|"1 mensagem por invocação"| CONSUMER
-    Q -->|"após 5 recebimentos sem sucesso"| DLQ
-    CONSUMER -->|"UpdateItem atômico: ADD count +1"| DB
-    API -->|"Query (GET) / Scan+BatchWrite (DELETE)"| DB
-    DB -->|"clusters H3 acumulados"| API
-    EB -->|"HTML, CSS e JavaScript"| MAP
-    MAP -->|"GET HTTPS (polling 5 s) / DELETE (limpar)"| API
-    API -->|"GeoJSON paginado"| MAP
-```
+[![Diagrama da arquitetura AWS: S3, produtor em stream, SQS FIFO, Lambda H3, DynamoDB, API e Elastic Beanstalk](arquitetura_ingestao_h3_mapa.svg)](arquitetura_ingestao_h3_mapa.svg)
 
 ### Fluxo dos dados
 
