@@ -4,35 +4,65 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Observatório • Focos de calor INPE</title>
 <link rel="stylesheet" href="./style.css">
-<script defer src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
 <script defer src="./config.js"></script>
 <script defer src="./data.js"></script>
 <script defer src="./app.js"></script>
 </head>
 <body>
-<header><a href="/" class="brand"><span class="symbol">◉</span> OBSERVATÓRIO <span class="tag">INPE / H3</span></a><span class="live">● Monitoramento de focos</span></header>
-<main>
-<section class="intro"><div class="eyebrow">TERRITÓRIO BRASILEIRO / DADOS DE SATÉLITE</div><h1>O fogo, em perspectiva.</h1><p>Todos os focos de calor somados por célula H3, com filtro opcional de tempo. Explore a distribuição das detecções sobre o Brasil.</p></section>
-<section class="workspace">
-<aside>
-<h2>Explorar detecções</h2>
-<label for="time-filter"><input id="time-filter" type="checkbox"> Limitar tempo de exibição</label>
-<label for="minutes">Últimos N minutos</label><input id="minutes" type="number" min="1" max="525600" step="1" value="60" disabled>
-<p id="period" class="note">Todo o histórico registrado</p>
-<label for="satellite">Satélite</label><select id="satellite"><option value="">Todos os satélites</option></select>
-<button id="refresh" class="primary">Atualizar agora ↗</button>
-<div class="metric"><span>Focos detectados</span><strong id="total">—</strong></div>
-<div class="metric"><span>Células ocupadas</span><strong id="cells">—</strong></div>
-<div class="metric"><span>Satélites</span><strong id="satellites">—</strong></div>
-<p id="status" role="status" aria-live="polite">Conectando ao mapa…</p>
-<p class="note">Consulta automática a cada 5 segundos. A fonte INPE publica arquivos em intervalos de 10 minutos. O filtro considera o horário da observação. Focos são detecções, não incêndios individuais.</p>
-</aside>
-<div class="map-panel"><div class="map-top"><span>BRASIL <small>/ Distribuição espacial</small></span><span id="updated">Aguardando dados</span></div>
-<div id="map"><svg viewBox="0 0 900 760" role="img" aria-label="Mapa de focos de calor no Brasil"><defs><clipPath id="brazil-clip"><path></path></clipPath></defs><g id="scene"><g id="land"></g><g id="hexagons" clip-path="url(#brazil-clip)"></g></g></svg><div class="zoom"><button id="zoom-in" aria-label="Aproximar mapa">+</button><button id="zoom-out" aria-label="Afastar mapa">−</button><button id="reset" aria-label="Restaurar mapa">↺</button></div><div id="tooltip" role="status" hidden></div></div>
-<div class="legend"><span>MENOS FOCOS</span><div></div><span>MAIS FOCOS</span><span id="range"></span></div>
-</div>
-</section>
-<footer>Fonte: Programa Queimadas / INPE <span>S3 → SQS → Lambda + H3 → DynamoDB → D3</span></footer>
+<header>
+  <a href="/" class="brand"><span class="symbol">◉</span> OBSERVATÓRIO <span class="tag">INPE / H3</span></a>
+  <span class="live">● Monitoramento em tempo real</span>
+</header>
+<main class="workspace">
+  <aside>
+    <div class="aside-head">
+      <div class="eyebrow">DADOS DE SATÉLITE · PLOTLY + H3</div>
+      <h1>Focos de calor</h1>
+      <p class="subtitle">Detecções acumuladas por célula hexagonal H3 e satélite em mapa interativo Plotly.</p>
+    </div>
+
+    <div class="controls">
+      <label for="map-style">Estilo do mapa</label>
+      <select id="map-style">
+        <option value="carto-positron">Carto Positron (padrão Plotly)</option>
+        <option value="carto-voyager">Carto Voyager</option>
+        <option value="carto-darkmatter">Carto Darkmatter</option>
+        <option value="white-bg">Fundo branco (White BG)</option>
+      </select>
+
+      <label for="colorscale">Escala de cores</label>
+      <select id="colorscale">
+        <option value="Viridis">Viridis (padrão Plotly)</option>
+        <option value="Plasma">Plasma</option>
+        <option value="YlOrRd">YlOrRd (Fogo)</option>
+        <option value="Cividis">Cividis</option>
+      </select>
+
+      <label for="satellite">Satélite</label>
+      <select id="satellite"><option value="">Todos os satélites</option></select>
+
+      <div class="btn-row">
+        <button id="refresh" class="primary">Atualizar agora</button>
+        <button id="center-br" class="secondary" title="Centralizar no Brasil">Brasil</button>
+      </div>
+      <button id="clear" class="danger">Limpar banco</button>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><span>Focos detectados</span><strong id="total">—</strong></div>
+      <div class="metric"><span>Células ocupadas</span><strong id="cells">—</strong></div>
+      <div class="metric"><span>Satélites</span><strong id="satellites">—</strong></div>
+    </div>
+
+    <p id="status" role="status" aria-live="polite">Conectando ao mapa…</p>
+    <p id="updated" class="meta">Aguardando dados</p>
+    <p class="note">Atualização automática a cada 5 s. Fonte: Programa Queimadas / INPE (S3 → SQS → Lambda + H3 → DynamoDB).</p>
+  </aside>
+
+  <section class="map-panel" aria-label="Mapa interativo Plotly de focos de calor">
+    <div id="map"></div>
+  </section>
 </main>
-</body></html>
+</body>
+</html>

@@ -1,19 +1,19 @@
-"""Consumidor SQS FIFO: agrega cada observação por janela de 10 minutos UTC, satélite e H3."""
+"""Consumidor SQS FIFO: agrega cada observação diretamente por H3 e satélite no DynamoDB."""
+
 import json
 import logging
 import os
-from datetime import datetime, timezone
 
 import boto3
 import h3
 from boto3.dynamodb.types import TypeSerializer
-from botocore.exceptions import ClientError
 
-from common.records import AGGREGATION, record, ten_minute_window
+from common.records import record
 
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 SERIALIZER = TypeSerializer()
+CLUSTER_PK = 'CLUSTER'
 
 
 def encode(item):
@@ -25,31 +25,15 @@ def persist(client, table, item, resolution):
     if item.get('id') != canonical['id']:
         raise ValueError('Identificador do registro não corresponde ao conteúdo')
     cell = h3.latlng_to_cell(canonical['latitude'], canonical['longitude'], resolution)
-    start, end = ten_minute_window(canonical['date'])
-    day = start[:10]
-    marker = {'pk': f"EVENT#{canonical['id']}", 'sk': f'RES#{resolution}#{AGGREGATION}', **canonical, 'h3': cell}
-    # Floats não são aceitos pelo serializer DynamoDB.
-    from decimal import Decimal
-    marker['latitude'] = Decimal(str(canonical['latitude']))
-    marker['longitude'] = Decimal(str(canonical['longitude']))
-    cluster = {'pk': f'DAY#{day}', 'sk': f"RES#{resolution}#{AGGREGATION}#{start}#H3#{cell}#SAT#{canonical['satellite']}"}
-    now = datetime.now(timezone.utc).isoformat()
-    try:
-        client.transact_write_items(TransactItems=[
-            {'Put': {'TableName': table, 'Item': encode(marker), 'ConditionExpression': 'attribute_not_exists(pk)'}},
-            {'Update': {'TableName': table, 'Key': encode(cluster),
-                        'UpdateExpression': 'SET #d=:d, window_end=:end, satellite=:s, h3=:h, resolution=:r, updated_at=:u ADD #n :one',
-                        'ExpressionAttributeNames': {'#d': 'date', '#n': 'count'},
-                        'ExpressionAttributeValues': encode({':d': start, ':end': end, ':s': canonical['satellite'], ':h': cell,
-                                                            ':r': resolution, ':u': now, ':one': 1})}}
-        ])
-        return True
-    except ClientError as error:
-        if error.response['Error']['Code'] == 'TransactionCanceledException':
-            reasons = error.response.get('CancellationReasons', [])
-            if reasons and reasons[0].get('Code') == 'ConditionalCheckFailed':
-                return False  # marcador e contador são gravados na mesma transação
-        raise
+    key = {'pk': CLUSTER_PK, 'sk': f"H3#{cell}#SAT#{canonical['satellite']}"}
+    client.update_item(
+        TableName=table,
+        Key=encode(key),
+        UpdateExpression='SET h3 = :h, satellite = :s ADD #n :one',
+        ExpressionAttributeNames={'#n': 'count'},
+        ExpressionAttributeValues=encode({':h': cell, ':s': canonical['satellite'], ':one': 1}),
+    )
+    return True
 
 
 def handler(event, context):
